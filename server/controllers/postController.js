@@ -149,6 +149,54 @@ const addComment = async (req, res) => {
     });
   }
 };
+// EDIT POST
+const editPost = async (req, res) => {
+  try {
+    const { content } = req.body;
+
+    if (!content || content.trim() === "") {
+      return res.status(400).json({
+        message: "Post content is required"
+      });
+    }
+
+    const post = await Post.findById(req.params.id);
+
+    if (!post) {
+      return res.status(404).json({
+        message: "Post not found"
+      });
+    }
+
+    // Only post owner can edit
+    if (post.user.toString() !== req.user.userId.toString()) {
+      return res.status(403).json({
+        message: "You can edit only your own post"
+      });
+    }
+
+    post.content = content.trim();
+
+    await post.save();
+
+    const updatedPost = await Post.findById(post._id)
+      .populate("user", "name username")
+      .populate("comments.user", "name username");
+
+    res.status(200).json({
+      message: "Post updated successfully",
+      post: updatedPost
+    });
+
+  } catch (error) {
+    console.error("EDIT POST ERROR:", error);
+
+    res.status(500).json({
+      message: "Server error",
+      error: error.message
+    });
+  }
+};
 
 // DELETE POST
 const deletePost = async (req, res) => {
@@ -188,5 +236,6 @@ module.exports = {
   getPosts,
   toggleLike,
   addComment,
+  editPost,
   deletePost
 };

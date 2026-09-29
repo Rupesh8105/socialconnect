@@ -13,6 +13,8 @@ function App() {
 
   const [commentText, setCommentText] = useState({});
   const [, setCommentingPost] = useState(null);
+  const [editingPost, setEditingPost] = useState(null);
+  const [editContent, setEditContent] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -351,6 +353,50 @@ const handleDelete = async (postId) => {
     alert("Post delete nahi ho pa raha.");
   }
 };
+const handleEdit = async (postId) => {
+  if (!editContent.trim()) {
+    alert("Post cannot be empty");
+    return;
+  }
+
+  try {
+    const token = localStorage.getItem("token");
+
+    const response = await fetch(
+      `http://localhost:5000/api/posts/${postId}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          content: editContent
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || "Failed to update post");
+      return;
+    }
+
+    setPosts((prevPosts) =>
+      prevPosts.map((post) =>
+        post._id === postId ? data.post : post
+      )
+    );
+
+    setEditingPost(null);
+    setEditContent("");
+
+  } catch (error) {
+    console.error("EDIT POST ERROR:", error);
+    alert("Something went wrong");
+  }
+};
 
   // LOGOUT
   const handleLogout = () => {
@@ -545,9 +591,31 @@ const handleDelete = async (postId) => {
 
                     </div>
 
-                    <p className="post-content">
-                      {post.content}
-                    </p>
+                   {editingPost === post._id ? (
+  <>
+    <textarea
+      value={editContent}
+      onChange={(e) => setEditContent(e.target.value)}
+    />
+
+    <button onClick={() => handleEdit(post._id)}>
+      💾 Save
+    </button>
+
+    <button
+      onClick={() => {
+        setEditingPost(null);
+        setEditContent("");
+      }}
+    >
+      Cancel
+    </button>
+  </>
+) : (
+  <p className="post-content">
+    {post.content}
+  </p>
+)}
 
                     <div className="post-footer">
 
@@ -561,12 +629,20 @@ const handleDelete = async (postId) => {
     💬 {post.comments?.length || 0} Comments
   </button>
   {post.user?.username === user?.username && (
-  <button
-    className="delete-btn"
-    onClick={() => handleDelete(post._id)}
-  >
-    🗑️ Delete
-  </button>
+  <>
+    <button
+      onClick={() => {
+        setEditingPost(post._id);
+        setEditContent(post.content);
+      }}
+    >
+      ✏️ Edit
+    </button>
+
+    <button onClick={() => handleDelete(post._id)}>
+      🗑️ Delete
+    </button>
+  </>
 )}
 
 </div>

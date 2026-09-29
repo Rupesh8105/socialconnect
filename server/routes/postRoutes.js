@@ -7,6 +7,7 @@ const {
   getPosts,
   toggleLike,
   addComment,
+  editPost,
   deletePost
 } = require("../controllers/postController");
 
@@ -23,6 +24,9 @@ router.put("/:id/like", protect, toggleLike);
 
 // Add Comment
 router.post("/:id/comment", protect, addComment);
+  
+// Edit Post
+router.put("/:id", protect, editPost);
 
 // Delete Post
 router.delete("/:id", protect, deletePost);
