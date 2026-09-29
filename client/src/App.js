@@ -1,0 +1,742 @@
+import { useEffect, useState } from "react";
+import "./App.css";
+
+function App() {
+  const [isLogin, setIsLogin] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState(null);
+  
+  const [posts, setPosts] = useState([]);
+  const [postContent, setPostContent] = useState("");
+  const [loadingPosts, setLoadingPosts] = useState(false);
+  const [creatingPost, setCreatingPost] = useState(false);
+
+  const [commentText, setCommentText] = useState({});
+  const [, setCommentingPost] = useState(null);
+
+  const [formData, setFormData] = useState({
+    name: "",
+    username: "",
+    email: "",
+    password: ""
+  });
+
+  // CHECK LOGIN AFTER PAGE REFRESH
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const savedUser = localStorage.getItem("user");
+
+    if (token && savedUser) {
+      setUser(JSON.parse(savedUser));
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  // FETCH POSTS AFTER LOGIN
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchPosts();
+    }
+  }, [isLoggedIn]);
+
+  // FORM CHANGE
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  // REGISTER
+  const handleRegister = async (e) => {
+    e.preventDefault();
+
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/auth/register",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(formData)
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert("Registration successful! 🎉");
+
+        setFormData({
+          name: "",
+          username: "",
+          email: "",
+          password: ""
+        });
+
+        setIsLogin(true);
+      } else {
+        alert(data.message);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server se connection nahi ho pa raha.");
+    }
+  };
+
+  // LOGIN
+  const handleLogin = async (e) => {
+    e.preventDefault();
+
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/auth/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password
+          })
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem(
+          "user",
+          JSON.stringify(data.user)
+        );
+
+        setUser(data.user);
+        setIsLoggedIn(true);
+
+        setFormData({
+          name: "",
+          username: "",
+          email: "",
+          password: ""
+        });
+
+        alert("Login successful! 🎉");
+      } else {
+        alert(data.message);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Server se connection nahi ho pa raha.");
+    }
+  };
+
+  // GET ALL POSTS
+  const fetchPosts = async () => {
+    setLoadingPosts(true);
+
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/posts"
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setPosts(data);
+      } else {
+        console.error(data.message);
+      }
+    } catch (error) {
+      console.error("Fetch posts error:", error);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  // CREATE POST
+  const handleCreatePost = async (e) => {
+    e.preventDefault();
+
+    if (!postContent.trim()) {
+      alert("Please write something first.");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      alert("Please login again.");
+      return;
+    }
+
+    setCreatingPost(true);
+
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/posts",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            content: postContent
+          })
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setPosts((previousPosts) => [
+          data.post,
+          ...previousPosts
+        ]);
+
+        setPostContent("");
+
+        alert("Post created successfully! 🎉");
+      } else {
+        alert(data.message);
+      }
+    } catch (error) {
+      console.error("Create post error:", error);
+      alert("Post create nahi ho pa raha.");
+    } finally {
+      setCreatingPost(false);
+    }
+  };
+
+  // LIKE / UNLIKE POST
+const handleLike = async (postId) => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    alert("Please login again.");
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/posts/${postId}/like`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      setPosts((previousPosts) =>
+        previousPosts.map((post) =>
+          post._id === postId
+            ? data.post
+            : post
+        )
+      );
+    } else {
+      alert(data.message);
+    }
+
+  } catch (error) {
+    console.error("Like error:", error);
+    alert("Like nahi ho pa raha.");
+  }
+};
+// ADD COMMENT
+const handleComment = async (postId) => {
+  const text = commentText[postId];
+
+  if (!text || !text.trim()) {
+    alert("Please write a comment.");
+    return;
+  }
+
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    alert("Please login again.");
+    return;
+  }
+
+  setCommentingPost(postId);
+
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/posts/${postId}/comment`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          text: text
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      setPosts((previousPosts) =>
+        previousPosts.map((post) =>
+          post._id === postId
+            ? data.post
+            : post
+        )
+      );
+
+      setCommentText((previous) => ({
+        ...previous,
+        [postId]: ""
+      }));
+    } else {
+      alert(data.message);
+    }
+
+  } catch (error) {
+    console.error("Comment error:", error);
+    alert("Comment add nahi ho pa raha.");
+  } finally {
+    setCommentingPost(null);
+  }
+};
+// DELETE POST
+const handleDelete = async (postId) => {
+  const confirmDelete = window.confirm(
+    "Are you sure you want to delete this post?"
+  );
+
+  if (!confirmDelete) {
+    return;
+  }
+
+  const token = localStorage.getItem("token");
+
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/posts/${postId}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      setPosts((previousPosts) =>
+        previousPosts.filter(
+          (post) => post._id !== postId
+        )
+      );
+
+      alert("Post deleted successfully! 🗑️");
+    } else {
+      alert(data.message);
+    }
+
+  } catch (error) {
+    console.error("Delete error:", error);
+    alert("Post delete nahi ho pa raha.");
+  }
+};
+
+  // LOGOUT
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    setUser(null);
+    setPosts([]);
+    setPostContent("");
+    setIsLoggedIn(false);
+  };
+
+  // HOME PAGE
+  if (isLoggedIn) {
+    return (
+      <div className="home-page">
+
+        {/* NAVBAR */}
+        <nav className="navbar">
+
+          <div className="logo">
+            SocialConnect
+          </div>
+
+          <div className="nav-right">
+
+            <span className="nav-username">
+              @{user?.username}
+            </span>
+
+            <button
+              className="logout-btn"
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
+
+          </div>
+
+        </nav>
+
+        {/* MAIN CONTENT */}
+        <main className="main-content">
+
+          {/* WELCOME */}
+          <section className="welcome-section">
+
+            <h1>
+              Welcome, {user?.name}! 👋
+            </h1>
+
+            <p>
+              Share your thoughts with the SocialConnect community.
+            </p>
+
+          </section>
+
+          {/* CREATE POST */}
+          <section className="create-post-card">
+
+            <div className="post-user">
+
+              <div className="avatar">
+                {user?.name
+                  ?.charAt(0)
+                  .toUpperCase()}
+              </div>
+
+              <div>
+                <strong>
+                  {user?.name}
+                </strong>
+
+                <span>
+                  @{user?.username}
+                </span>
+              </div>
+
+            </div>
+
+            <form onSubmit={handleCreatePost}>
+
+              <textarea
+                placeholder="What's on your mind?"
+                value={postContent}
+                onChange={(e) =>
+                  setPostContent(e.target.value)
+                }
+                maxLength="500"
+              />
+
+              <div className="post-action">
+
+                <span>
+                  {postContent.length}/500
+                </span>
+
+                <button
+                  type="submit"
+                  className="post-btn"
+                  disabled={creatingPost}
+                >
+                  {creatingPost
+                    ? "Posting..."
+                    : "Create Post"}
+                </button>
+
+              </div>
+
+            </form>
+
+          </section>
+
+          {/* POSTS FEED */}
+          <section className="feed-section">
+
+            <div className="feed-header">
+
+              <h2>
+                Latest Posts
+              </h2>
+
+              <button
+                className="refresh-btn"
+                onClick={fetchPosts}
+              >
+                🔄 Refresh
+              </button>
+
+            </div>
+
+            {loadingPosts ? (
+
+              <div className="empty-message">
+                Loading posts...
+              </div>
+
+            ) : posts.length === 0 ? (
+
+              <div className="empty-message">
+
+                <h3>
+                  No posts yet 📝
+                </h3>
+
+                <p>
+                  Be the first person to share something!
+                </p>
+
+              </div>
+
+            ) : (
+
+              <div className="posts-list">
+
+                {posts.map((post) => (
+
+                  <article
+                    className="post-card"
+                    key={post._id}
+                  >
+
+                    <div className="post-header">
+
+                      <div className="post-user">
+
+                        <div className="avatar">
+                          {post.user?.name
+                            ?.charAt(0)
+                            .toUpperCase()}
+                        </div>
+
+                        <div>
+
+                          <strong>
+                            {post.user?.name}
+                          </strong>
+
+                          <span>
+                            @{post.user?.username}
+                          </span>
+
+                        </div>
+
+                      </div>
+
+                      <span className="post-date">
+                        {new Date(
+                          post.createdAt
+                        ).toLocaleString()}
+                      </span>
+
+                    </div>
+
+                    <p className="post-content">
+                      {post.content}
+                    </p>
+
+                    <div className="post-footer">
+
+  <button
+    onClick={() => handleLike(post._id)}
+  >
+    ❤️ {post.likes?.length || 0} Like
+  </button>
+
+  <button>
+    💬 {post.comments?.length || 0} Comments
+  </button>
+  {post.user?.username === user?.username && (
+  <button
+    className="delete-btn"
+    onClick={() => handleDelete(post._id)}
+  >
+    🗑️ Delete
+  </button>
+)}
+
+</div>
+
+<div className="comments-section">
+
+  {post.comments?.map((comment) => (
+    <div className="comment" key={comment._id}>
+
+      <strong>
+        {comment.user?.name}
+      </strong>
+
+      <p>{comment.text}</p>
+
+    </div>
+  ))}
+
+  <div className="comment-input-row">
+
+    <input
+      type="text"
+      placeholder="Write a comment..."
+      value={commentText[post._id] || ""}
+      onChange={(e) =>
+        setCommentText({
+          ...commentText,
+          [post._id]: e.target.value
+        })
+      }
+    />
+
+    <button
+      onClick={() => handleComment(post._id)}
+    >
+      Post
+    </button>
+
+  </div>
+       
+</div>
+
+                  </article>
+
+                ))}
+
+              </div>
+
+            )}
+
+          </section>
+
+        </main>
+
+      </div>
+    );
+  }
+
+  // LOGIN / REGISTER PAGE
+  return (
+    <div className="app">
+
+      <div className="auth-container">
+
+        <div className="logo">
+          SocialConnect
+        </div>
+
+        <h2>
+          {isLogin
+            ? "Welcome Back!"
+            : "Create Account"}
+        </h2>
+
+        <p className="subtitle">
+          {isLogin
+            ? "Login to continue to SocialConnect"
+            : "Join our social community today"}
+        </p>
+
+        <form
+          onSubmit={
+            isLogin
+              ? handleLogin
+              : handleRegister
+          }
+        >
+
+          {!isLogin && (
+            <>
+              <input
+                type="text"
+                name="name"
+                placeholder="Full Name"
+                value={formData.name}
+                onChange={handleChange}
+                required
+              />
+
+              <input
+                type="text"
+                name="username"
+                placeholder="Username"
+                value={formData.username}
+                onChange={handleChange}
+                required
+              />
+            </>
+          )}
+
+          <input
+            type="email"
+            name="email"
+            placeholder="Email"
+            value={formData.email}
+            onChange={handleChange}
+            required
+          />
+
+          <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            value={formData.password}
+            onChange={handleChange}
+            required
+          />
+
+          <button
+            type="submit"
+            className="primary-btn"
+          >
+            {isLogin
+              ? "Login"
+              : "Create Account"}
+          </button>
+
+        </form>
+
+        <p className="switch-text">
+
+          {isLogin
+            ? "Don't have an account?"
+            : "Already have an account?"}
+
+          <span
+            onClick={() => {
+
+              setIsLogin(!isLogin);
+
+              setFormData({
+                name: "",
+                username: "",
+                email: "",
+                password: ""
+              });
+
+            }}
+          >
+            {isLogin
+              ? " Register"
+              : " Login"}
+          </span>
+
+        </p>
+
+      </div>
+
+    </div>
+  );
+}
+
+export default App;
