@@ -7,6 +7,8 @@ const connectDB = require("./config/db");
 const app = express();
 const authRoutes = require("./routes/authRoutes");
 const postRoutes = require("./routes/postRoutes");
+const userRoutes = require("./routes/userRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 // Connect Database
 connectDB();
@@ -17,6 +19,8 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/posts", postRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/notifications", notificationRoutes);
 // Test route
 app.get("/", (req, res) => {
     res.json({

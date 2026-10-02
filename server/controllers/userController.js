@@ -163,9 +163,51 @@ const updateProfile = async (req, res) => {
     });
   }
 };
+const searchUsers = async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query || query.trim() === "") {
+      return res.status(200).json({
+        users: []
+      });
+    }
+
+    const users = await User.find({
+      $or: [
+        {
+          name: {
+            $regex: query,
+            $options: "i"
+          }
+        },
+        {
+          username: {
+            $regex: query,
+            $options: "i"
+          }
+        }
+      ]
+    })
+      .select("name username profilePicture bio")
+      .limit(10);
+
+    res.status(200).json({
+      users
+    });
+  } catch (error) {
+    console.error("SEARCH USERS ERROR:", error);
+
+    res.status(500).json({
+      message: "Server error",
+      error: error.message
+    });
+  }
+};
 module.exports = {
   followUser,
   unfollowUser,
   getUserProfile,
-  updateProfile
+  updateProfile,
+  searchUsers
 };

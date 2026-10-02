@@ -15,7 +15,23 @@ function App() {
   const [, setCommentingPost] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [editContent, setEditContent] = useState("");
+  const [profileUser, setProfileUser] = useState(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [showConnections, setShowConnections] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  
+const [searchQuery, setSearchQuery] = useState("");
+const [searchResults, setSearchResults] = useState([]);
 
+const [profileForm, setProfileForm] = useState({
+  name: "",
+  bio: "",
+  profilePicture: ""
+});
+    
   const [formData, setFormData] = useState({
     name: "",
     username: "",
@@ -408,11 +424,355 @@ const handleEdit = async (postId) => {
     setPostContent("");
     setIsLoggedIn(false);
   };
+const handleProfile = async (userId) => {
+  if (!userId) {
+    console.log("USER OBJECT:", user);
+    alert("User ID not found. Please login again.");
+    return;
+  }
 
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/users/${userId}`
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || "Failed to load profile");
+      return;
+    }
+setIsFollowing(
+  data.user.followers?.some(
+    (follower) => follower._id === user?._id || follower._id === user?.id
+  )
+);
+    setShowConnections(null);
+    setProfileUser(data.user);
+
+if (
+  data.user._id === user?._id ||
+  data.user._id === user?.id
+) {
+  setProfileForm({
+    name: data.user.name || "",
+    bio: data.user.bio || "",
+    profilePicture: data.user.profilePicture || ""
+  });
+}
+
+setShowProfile(true);
+  } catch (error) {
+    console.error("PROFILE ERROR:", error);
+    alert("Something went wrong");
+  }
+};
+const handleSearch = async (e) => {
+  const value = e.target.value;
+
+  setSearchQuery(value);
+
+  if (!value.trim()) {
+    setSearchResults([]);
+    return;
+  }
+
+  try {
+    const token = localStorage.getItem("token");
+
+    const response = await fetch(
+      `http://localhost:5000/api/users/search?query=${encodeURIComponent(value)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(data.message);
+      return;
+    }
+
+    setSearchResults(data.users);
+  } catch (error) {
+    console.error("SEARCH ERROR:", error);
+  }
+};
+const fetchNotifications = async () => {
+  try {
+    const token = localStorage.getItem("token");
+
+    const response = await fetch(
+      "http://localhost:5000/api/notifications",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(data.message);
+      return;
+    }
+
+    setNotifications(data.notifications);
+  } catch (error) {
+    console.error("NOTIFICATION ERROR:", error);
+  }
+};
+const handleFollow = async () => {
+  try {
+    const targetUserId = profileUser._id;
+
+    const response = await fetch(
+      `http://localhost:5000/api/users/${targetUserId}/${
+        isFollowing ? "unfollow" : "follow"
+      }`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || "Something went wrong");
+      return;
+    }
+
+    setIsFollowing(!isFollowing);
+
+    setProfileUser((prev) => ({
+      ...prev,
+      followers: isFollowing
+        ? prev.followers.filter(
+            (follower) => follower._id !== user?._id && follower._id !== user?.id
+          )
+        : [...(prev.followers || []), { _id: user?._id || user?.id }],
+    }));
+  } catch (error) {
+    console.error("FOLLOW ERROR:", error);
+    alert("Something went wrong");
+  }
+};
+const handleUpdateProfile = async () => {
+  try {
+    const token = localStorage.getItem("token");
+
+    const response = await fetch(
+      "http://localhost:5000/api/users/profile",
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(profileForm),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.message || "Profile update failed");
+      return;
+    }
+    
+    setProfileUser(data.user);
+    setUser(data.user);
+
+    localStorage.setItem("user", JSON.stringify(data.user));
+
+    setEditingProfile(false);
+
+    alert("Profile updated successfully! 🎉");
+  } catch (error) {
+    console.error("UPDATE PROFILE ERROR:", error);
+    alert("Something went wrong");
+  }
+};
   // HOME PAGE
   if (isLoggedIn) {
+
+  if (showProfile && profileUser) {
     return (
       <div className="home-page">
+        <nav className="navbar">
+          <div className="logo">
+            SocialConnect
+          </div>
+
+          <button
+            className="refresh-btn"
+            onClick={() => setShowProfile(false)}
+          >
+            ← Back
+          </button>
+        </nav>
+
+        <main className="main-content">
+          <div className="profile-card">
+            <div className="avatar">
+  {profileUser.profilePicture ? (
+    <img
+      src={profileUser.profilePicture}
+      alt="Profile"
+    />
+  ) : (
+    profileUser.name?.charAt(0).toUpperCase()
+  )}
+</div>
+            <h2>{profileUser.name}</h2>
+
+            <p>@{profileUser.username}</p>
+
+            <p>
+              {profileUser.bio || "No bio yet."}
+            </p>
+
+           <div className="profile-stats">
+
+  <div
+    onClick={() => setShowConnections("followers")}
+    style={{ cursor: "pointer" }}
+  >
+    <strong>{profileUser.followers?.length || 0}</strong>
+    <span>Followers</span>
+  </div>
+
+  <div
+    onClick={() => setShowConnections("following")}
+    style={{ cursor: "pointer" }}
+  >
+    <strong>{profileUser.following?.length || 0}</strong>
+    <span>Following</span>
+  </div>
+
+</div>
+{showConnections && (
+  <div className="connections-list">
+
+    <h3>
+      {showConnections === "followers"
+        ? "Followers"
+        : "Following"}
+    </h3>
+
+    {(showConnections === "followers"
+      ? profileUser.followers
+      : profileUser.following
+    )?.length === 0 ? (
+      <p>No users yet.</p>
+    ) : (
+      (showConnections === "followers"
+        ? profileUser.followers
+        : profileUser.following
+      )?.map((connection) => (
+        <div
+          key={connection._id}
+          className="connection-user"
+          onClick={() => {
+            setShowConnections(null);
+            handleProfile(connection._id);
+          }}
+        >
+          <strong>{connection.name}</strong>
+          <span>@{connection.username}</span>
+        </div>
+      ))
+    )}
+
+  </div>
+)}
+                      {(profileUser._id !== user?._id &&
+  profileUser._id !== user?.id) && (
+  <button
+    className="follow-btn"
+    onClick={handleFollow}
+  >
+    {isFollowing ? "Unfollow" : "Follow"}
+  </button>
+)}
+{(profileUser._id === user?._id ||
+  profileUser._id === user?.id) && (
+  <button
+    className="edit-profile-btn"
+    onClick={() => setEditingProfile(true)}
+  >
+    ✏️ Edit Profile
+  </button>
+)}
+
+{editingProfile && (
+  <div className="edit-profile-form">
+
+    <input
+      type="text"
+      placeholder="Name"
+      value={profileForm.name}
+      onChange={(e) =>
+        setProfileForm({
+          ...profileForm,
+          name: e.target.value
+        })
+      }
+    />
+
+    <textarea
+      placeholder="Bio"
+      value={profileForm.bio}
+      onChange={(e) =>
+        setProfileForm({
+          ...profileForm,
+          bio: e.target.value
+        })
+      }
+    />
+
+    <input
+      type="text"
+      placeholder="Profile Picture URL"
+      value={profileForm.profilePicture}
+      onChange={(e) =>
+        setProfileForm({
+          ...profileForm,
+          profilePicture: e.target.value
+        })
+      }
+    />
+
+    <button
+      onClick={handleUpdateProfile}
+    >
+      💾 Save Changes
+    </button>
+
+    <button
+      onClick={() => setEditingProfile(false)}
+    >
+      Cancel
+    </button>
+
+  </div>
+)}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+      <div className="home-page">
+    
 
         {/* NAVBAR */}
         <nav className="navbar">
@@ -420,23 +780,106 @@ const handleEdit = async (postId) => {
           <div className="logo">
             SocialConnect
           </div>
+<div className="search-container">
+  <input
+    type="text"
+    placeholder="Search users..."
+    value={searchQuery}
+    onChange={handleSearch}
+  />
+  {searchResults.length > 0 && (
+  <div className="search-results">
 
+    {searchResults.map((searchUser) => (
+      <div
+        key={searchUser._id}
+        className="search-result-user"
+        onClick={() => {
+          setSearchResults([]);
+          setSearchQuery("");
+          handleProfile(searchUser._id);
+        }}
+      >
+        <div className="search-user-info">
+          <strong>{searchUser.name}</strong>
+          <span>@{searchUser.username}</span>
+        </div>
+      </div>
+    ))}
+
+  </div>
+)}
+</div>
           <div className="nav-right">
 
-            <span className="nav-username">
-              @{user?.username}
-            </span>
-
+            <button
+              className="nav-profile-btn"
+              onClick={() => handleProfile(user?._id || user?.id)}
+>
+  @{user?.username}
+</button>
+           <button
+              className="notification-btn"
+              onClick={() => {
+                fetchNotifications();
+                setShowNotifications((prev) => !prev);
+  }}
+>
+  🔔
+</button>
             <button
               className="logout-btn"
               onClick={handleLogout}
             >
               Logout
             </button>
-
+        
           </div>
 
         </nav>
+  
+{showNotifications && (
+  <div className="notification-panel">
+
+    <div className="notification-header">
+      <h3>Notifications</h3>
+
+      <button
+        onClick={() => setShowNotifications(false)}
+      >
+        ✕
+      </button>
+    </div>
+
+    {notifications.length === 0 ? (
+      <p className="no-notifications">
+        No notifications yet.
+      </p>
+    ) : (
+      notifications.map((notification) => (
+        <div
+  key={notification._id}
+  className={`notification-item ${
+    notification.isRead ? "" : "unread"
+  }`}
+  onClick={() => {
+    setShowNotifications(false);
+    handleProfile(notification.sender?._id);
+  }}
+>
+          <strong>
+            {notification.sender?.name}
+          </strong>
+
+          <span>
+            started following you.
+          </span>
+        </div>
+      ))
+    )}
+
+  </div>
+)}
 
         {/* MAIN CONTENT */}
         <main className="main-content">
@@ -569,17 +1012,18 @@ const handleEdit = async (postId) => {
                             .toUpperCase()}
                         </div>
 
-                        <div>
+                        <div
+  className="post-user-info"
+  onClick={() => handleProfile(post.user?._id)}
+>
+  <strong>
+    {post.user?.name}
+  </strong>
 
-                          <strong>
-                            {post.user?.name}
-                          </strong>
-
-                          <span>
-                            @{post.user?.username}
-                          </span>
-
-                        </div>
+  <span>
+    @{post.user?.username}
+  </span>
+</div>
 
                       </div>
 
@@ -598,18 +1042,20 @@ const handleEdit = async (postId) => {
       onChange={(e) => setEditContent(e.target.value)}
     />
 
-    <button onClick={() => handleEdit(post._id)}>
-      💾 Save
-    </button>
+    <div className="edit-actions">
+      <button onClick={() => handleEdit(post._id)}>
+        💾 Save
+      </button>
 
-    <button
-      onClick={() => {
-        setEditingPost(null);
-        setEditContent("");
-      }}
-    >
-      Cancel
-    </button>
+      <button
+        onClick={() => {
+          setEditingPost(null);
+          setEditContent("");
+        }}
+      >
+        Cancel
+      </button>
+    </div>
   </>
 ) : (
   <p className="post-content">
@@ -617,7 +1063,7 @@ const handleEdit = async (postId) => {
   </p>
 )}
 
-                    <div className="post-footer">
+                    <div className="post-actions">
 
   <button
     onClick={() => handleLike(post._id)}
