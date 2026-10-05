@@ -1,4 +1,5 @@
 const Post = require("../models/Post");
+const Notification = require("../models/Notification");
 
 // CREATE POST
 const createPost = async (req, res) => {
@@ -82,7 +83,15 @@ const toggleLike = async (req, res) => {
     }
 
     await post.save();
-
+ 
+if (!alreadyLiked && post.user.toString() !== userId.toString()) {
+  await Notification.create({
+    recipient: post.user,
+    sender: userId,
+    type: "like",
+    post: post._id
+  });
+}
     const updatedPost = await Post.findById(post._id)
       .populate("user", "name username")
       .populate("comments.user", "name username");
@@ -123,14 +132,21 @@ const addComment = async (req, res) => {
         message: "Post not found"
       });
     }
-
+const userId = req.user.userId;
     post.comments.push({
       user: req.user.userId,
       text: text.trim()
     });
 
     await post.save();
-
+if (post.user.toString() !== userId.toString()) {
+  await Notification.create({
+    recipient: post.user,
+    sender: userId,
+    type: "comment",
+    post: post._id
+  });
+}
     const updatedPost = await Post.findById(post._id)
       .populate("user", "name username")
       .populate("comments.user", "name username");

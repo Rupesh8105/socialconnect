@@ -12,7 +12,7 @@ function App() {
   const [creatingPost, setCreatingPost] = useState(false);
 
   const [commentText, setCommentText] = useState({});
-  const [, setCommentingPost] = useState(null);
+  const [commentingPost, setCommentingPost] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [editContent, setEditContent] = useState("");
   const [profileUser, setProfileUser] = useState(null);
@@ -872,8 +872,10 @@ const handleUpdateProfile = async () => {
           </strong>
 
           <span>
-            started following you.
-          </span>
+  {notification.type === "like" && "❤️ liked your post."}
+  {notification.type === "comment" && "💬 commented on your post."}
+  {notification.type === "follow" && "👤 started following you."}
+</span>
         </div>
       ))
     )}
@@ -1066,14 +1068,29 @@ const handleUpdateProfile = async () => {
                     <div className="post-actions">
 
   <button
-    onClick={() => handleLike(post._id)}
-  >
-    ❤️ {post.likes?.length || 0} Like
-  </button>
+  onClick={() => handleLike(post._id)}
+>
+  {post.likes?.some(
+    (like) =>
+      like === user?._id ||
+      like?._id === user?._id ||
+      like === user?.id ||
+      like?._id === user?.id
+  )
+    ? "❤️ Liked"
+    : "🤍 Like"}{" "}
+  {post.likes?.length || 0}
+</button>
 
-  <button>
-    💬 {post.comments?.length || 0} Comments
-  </button>
+ <button
+  onClick={() =>
+    setCommentingPost(
+      commentingPost === post._id ? null : post._id
+    )
+  }
+>
+  💬 {post.comments?.length || 0} Comments
+</button>
   {post.user?.username === user?.username && (
   <>
     <button
