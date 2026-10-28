@@ -4,8 +4,8 @@ const followUser = async (req, res) => {
   try {
     const currentUserId = req.user.userId;
     const targetUserId = req.params.id;
-
-    if (currentUserId === targetUserId) {
+if (currentUserId.toString() === targetUserId.toString())
+     {
       return res.status(400).json({
         message: "You cannot follow yourself"
       });
@@ -20,8 +20,15 @@ const followUser = async (req, res) => {
     }
 
     const currentUser = await User.findById(currentUserId);
+    if (!currentUser) {
+  return res.status(404).json({
+    message: "Current user not found"
+  });
+}
 
-    if (currentUser.following.includes(targetUserId)) {
+    if (currentUser.following.some(
+  (id) => id.toString() === targetUserId.toString()
+)) {
       return res.status(400).json({
         message: "Already following this user"
       });
@@ -52,13 +59,26 @@ res.status(200).json({
   }
 };
 
+
 const unfollowUser = async (req, res) => {
   try {
     const currentUserId = req.user.userId;
     const targetUserId = req.params.id;
 
+    if (currentUserId.toString() === targetUserId.toString()) {
+      return res.status(400).json({
+        message: "You cannot unfollow yourself"
+      });
+    }
+
     const currentUser = await User.findById(currentUserId);
     const targetUser = await User.findById(targetUserId);
+
+    if (!currentUser) {
+      return res.status(404).json({
+        message: "Current user not found"
+      });
+    }
 
     if (!targetUser) {
       return res.status(404).json({
@@ -67,11 +87,11 @@ const unfollowUser = async (req, res) => {
     }
 
     currentUser.following = currentUser.following.filter(
-      (id) => id.toString() !== targetUserId
+      (id) => id.toString() !== targetUserId.toString()
     );
 
     targetUser.followers = targetUser.followers.filter(
-      (id) => id.toString() !== currentUserId
+      (id) => id.toString() !== currentUserId.toString()
     );
 
     await currentUser.save();
@@ -84,11 +104,11 @@ const unfollowUser = async (req, res) => {
     console.error("UNFOLLOW USER ERROR:", error);
 
     res.status(500).json({
-      message: "Server error",
-      error: error.message
+      message: "Server error"
     });
   }
 };
+
 const getUserProfile = async (req, res) => {
   try {
     console.log("PROFILE ID:", req.params.id);
@@ -118,7 +138,33 @@ const getUserProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { name, bio, profilePicture } = req.body;
+if (
+  (name !== undefined && typeof name !== "string") ||
+  (bio !== undefined && typeof bio !== "string") ||
+  (profilePicture !== undefined &&
+    typeof profilePicture !== "string")
+) {
+  return res.status(400).json({
+    message: "Name, bio, and profile picture must be strings"
+  });
+}
+if (name !== undefined && name.trim().length === 0) {
+  return res.status(400).json({
+    message: "Name cannot be empty"
+  });
+}
 
+if (name !== undefined && name.trim().length > 50) {
+  return res.status(400).json({
+    message: "Name cannot exceed 50 characters"
+  });
+}
+
+if (bio !== undefined && bio.trim().length > 300) {
+  return res.status(400).json({
+    message: "Bio cannot exceed 300 characters"
+  });
+}
     const user = await User.findById(req.user.userId);
 
     if (!user) {
@@ -163,27 +209,41 @@ const updateProfile = async (req, res) => {
     });
   }
 };
+
+const escapeRegex = (value) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const searchUsers = async (req, res) => {
   try {
     const { query } = req.query;
+    if (query !== undefined && typeof query !== "string") {
+  return res.status(400).json({
+    message: "Search query must be a string"
+  });
+}
+if (query && query.length > 100) {
+  return res.status(400).json({
+    message: "Search query cannot exceed 100 characters"
+  });
+}
 
     if (!query || query.trim() === "") {
       return res.status(200).json({
         users: []
       });
     }
-
+const safeQuery = escapeRegex(query.trim());
     const users = await User.find({
       $or: [
         {
           name: {
-            $regex: query,
+           $regex: safeQuery,
             $options: "i"
           }
         },
         {
           username: {
-            $regex: query,
+            $regex: safeQuery,
             $options: "i"
           }
         }

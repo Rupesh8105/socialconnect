@@ -11,7 +11,8 @@ const postSchema = new mongoose.Schema(
     content: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+      maxlength: [500,"Post content cannot exceed 500 characters"]
     },
 
     likes: [
@@ -32,7 +33,8 @@ const postSchema = new mongoose.Schema(
         text: {
           type: String,
           required: true,
-          trim: true
+          trim: true,
+           maxlength: [500, "Comment cannot exceed 500 characters"]
         },
 
         createdAt: {

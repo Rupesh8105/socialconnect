@@ -5,12 +5,18 @@ const Notification = require("../models/Notification");
 const createPost = async (req, res) => {
   try {
     const { content } = req.body;
+    
+if (typeof content !== "string" || content.trim() === "") {
+  return res.status(400).json({
+    message: "Post content is required"
+  });
+}
 
-    if (!content || content.trim() === "") {
-      return res.status(400).json({
-        message: "Post content is required"
-      });
-    }
+if (content.trim().length > 500) {
+  return res.status(400).json({
+    message: "Post content cannot exceed 500 characters"
+  });
+}
 
     const post = await Post.create({
       user: req.user.userId,
@@ -119,11 +125,19 @@ const addComment = async (req, res) => {
   try {
     const { text } = req.body;
 
-    if (!text || text.trim() === "") {
-      return res.status(400).json({
-        message: "Comment cannot be empty"
-      });
-    }
+  
+if (typeof text !== "string" || text.trim() === "") {
+  return res.status(400).json({
+    message: "Comment cannot be empty"
+  });
+}
+
+if (text.trim().length > 500) {
+  return res.status(400).json({
+    message: "Comment cannot exceed 500 characters"
+  });
+}
+
 
     const post = await Post.findById(req.params.id);
 
@@ -170,11 +184,19 @@ const editPost = async (req, res) => {
   try {
     const { content } = req.body;
 
-    if (!content || content.trim() === "") {
-      return res.status(400).json({
-        message: "Post content is required"
-      });
-    }
+    
+if (typeof content !== "string" || content.trim() === "") {
+  return res.status(400).json({
+    message: "Post content is required"
+  });
+}
+
+if (content.trim().length > 500) {
+  return res.status(400).json({
+    message: "Post content cannot exceed 500 characters"
+  });
+}
+
 
     const post = await Post.findById(req.params.id);
 
@@ -217,6 +239,11 @@ const editPost = async (req, res) => {
 // DELETE POST
 const deletePost = async (req, res) => {
   try {
+    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+  return res.status(400).json({
+    message: "Invalid post ID"
+  });
+}
     const post = await Post.findById(req.params.id);
 
     if (!post) {

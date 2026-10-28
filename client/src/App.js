@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 function App() {
   const [isLogin, setIsLogin] = useState(true);
@@ -21,6 +22,7 @@ function App() {
   const [showConnections, setShowConnections] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [editingProfile, setEditingProfile] = useState(false);
   
 const [searchQuery, setSearchQuery] = useState("");
@@ -51,11 +53,16 @@ const [profileForm, setProfileForm] = useState({
   }, []);
 
   // FETCH POSTS AFTER LOGIN
-  useEffect(() => {
-    if (isLoggedIn) {
-      fetchPosts();
-    }
-  }, [isLoggedIn]);
+ useEffect(() => {
+  if (!isLoggedIn) return;
+
+  const interval = setInterval(() => {
+    fetchNotifications();
+    fetchUnreadCount();
+  }, 15000);
+
+  return () => clearInterval(interval);
+}, [isLoggedIn]);
 
   // FORM CHANGE
   const handleChange = (e) => {
@@ -70,9 +77,7 @@ const [profileForm, setProfileForm] = useState({
     e.preventDefault();
 
     try {
-      const response = await fetch(
-        "http://localhost:5000/api/auth/register",
-        {
+      const response = await fetch(`${API_URL}/api/auth/register`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -108,9 +113,7 @@ const [profileForm, setProfileForm] = useState({
     e.preventDefault();
 
     try {
-      const response = await fetch(
-        "http://localhost:5000/api/auth/login",
-        {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -156,9 +159,7 @@ const [profileForm, setProfileForm] = useState({
     setLoadingPosts(true);
 
     try {
-      const response = await fetch(
-        "http://localhost:5000/api/posts"
-      );
+      const response = await fetch(`${API_URL}/api/posts`);
 
       const data = await response.json();
 
@@ -193,9 +194,7 @@ const [profileForm, setProfileForm] = useState({
     setCreatingPost(true);
 
     try {
-      const response = await fetch(
-        "http://localhost:5000/api/posts",
-        {
+      const response = await fetch(`${API_URL}/api/posts`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -239,9 +238,7 @@ const handleLike = async (postId) => {
   }
 
   try {
-    const response = await fetch(
-      `http://localhost:5000/api/posts/${postId}/like`,
-      {
+    const response = await fetch(`${API_URL}/api/posts/${postId}/like`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`
@@ -287,9 +284,7 @@ const handleComment = async (postId) => {
   setCommentingPost(postId);
 
   try {
-    const response = await fetch(
-      `http://localhost:5000/api/posts/${postId}/comment`,
-      {
+    const response = await fetch(`${API_URL}/api/posts/${postId}/comment`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -340,9 +335,7 @@ const handleDelete = async (postId) => {
   const token = localStorage.getItem("token");
 
   try {
-    const response = await fetch(
-      `http://localhost:5000/api/posts/${postId}`,
-      {
+    const response = await fetch(`${API_URL}/api/posts/${postId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`
@@ -378,9 +371,7 @@ const handleEdit = async (postId) => {
   try {
     const token = localStorage.getItem("token");
 
-    const response = await fetch(
-      `http://localhost:5000/api/posts/${postId}`,
-      {
+    const response = await fetch(`${API_URL}/api/posts/${postId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -424,6 +415,38 @@ const handleEdit = async (postId) => {
     setPostContent("");
     setIsLoggedIn(false);
   };
+  const handleNotificationClick = (notification) => {
+  if (!notification.isRead) {
+    handleMarkAsRead(notification._id);
+  }
+
+  setShowNotifications(false);
+
+  // Follow notification: sender ka profile open karo
+  if (notification.type === "follow") {
+    if (notification.sender?._id) {
+      handleProfile(notification.sender._id);
+
+    }
+    return;
+  }
+
+  // Like/comment notification: related post locate karo
+  if (notification.post?._id) {
+    const postElement = document.getElementById(
+      `post-${notification.post._id}`
+    );
+
+    if (postElement) {
+      postElement.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    } else {
+      alert("Related post feed mein nahi mila.");
+    }
+  }
+};
 const handleProfile = async (userId) => {
   if (!userId) {
     console.log("USER OBJECT:", user);
@@ -432,9 +455,7 @@ const handleProfile = async (userId) => {
   }
 
   try {
-    const response = await fetch(
-      `http://localhost:5000/api/users/${userId}`
-    );
+    const response = await fetch(`${API_URL}/api/users/${userId}`);
 
     const data = await response.json();
 
@@ -480,9 +501,7 @@ const handleSearch = async (e) => {
   try {
     const token = localStorage.getItem("token");
 
-    const response = await fetch(
-      `http://localhost:5000/api/users/search?query=${encodeURIComponent(value)}`,
-      {
+    const response = await fetch(`${API_URL}/api/users/search?query=${encodeURIComponent(value)}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -505,9 +524,7 @@ const fetchNotifications = async () => {
   try {
     const token = localStorage.getItem("token");
 
-    const response = await fetch(
-      "http://localhost:5000/api/notifications",
-      {
+    const response = await fetch(`${API_URL}/api/notifications`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -526,12 +543,71 @@ const fetchNotifications = async () => {
     console.error("NOTIFICATION ERROR:", error);
   }
 };
+
+const fetchUnreadCount = async () => {
+  try {
+    const token = localStorage.getItem("token");
+
+    const response = await fetch(
+      `${API_URL}/api/notifications/unread-count`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+
+    if (response.ok) {
+      setUnreadCount(data.count);
+    }
+  } catch (error) {
+    console.error("UNREAD COUNT ERROR:", error);
+  }
+};
+
+
+
+
+const handleMarkAsRead = async (notificationId) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    const response = await fetch(
+      `${API_URL}/api/notifications/${notificationId}/read`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.error("Notification mark as read failed");
+      return;
+    }
+
+    setNotifications((previous) =>
+      previous.map((notification) =>
+        notification._id === notificationId
+          ? { ...notification, isRead: true }
+          : notification
+      )
+    );
+    setUnreadCount((previous) => Math.max(0, previous - 1));
+  } catch (error) {
+    console.error("MARK AS READ ERROR:", error);
+  }
+};
+
 const handleFollow = async () => {
   try {
     const targetUserId = profileUser._id;
 
     const response = await fetch(
-      `http://localhost:5000/api/users/${targetUserId}/${
+      `${API_URL}/api/users/${targetUserId}/${
         isFollowing ? "unfollow" : "follow"
       }`,
       {
@@ -569,7 +645,7 @@ const handleUpdateProfile = async () => {
     const token = localStorage.getItem("token");
 
     const response = await fetch(
-      "http://localhost:5000/api/users/profile",
+      `${API_URL}/api/users/profile`,
       {
         method: "PUT",
         headers: {
@@ -818,15 +894,27 @@ const handleUpdateProfile = async () => {
 >
   @{user?.username}
 </button>
-           <button
-              className="notification-btn"
-              onClick={() => {
-                fetchNotifications();
-                setShowNotifications((prev) => !prev);
+          
+<button
+  className="notification-btn"
+  onClick={() => {
+    const willOpen = !showNotifications;
+    setShowNotifications(willOpen);
+
+    if (willOpen) {
+      fetchNotifications();
+      fetchUnreadCount();
+    }
   }}
 >
   🔔
+  {unreadCount > 0 && (
+    <span className="notification-badge">
+      {unreadCount > 99 ? "99+" : unreadCount}
+    </span>
+  )}
 </button>
+
             <button
               className="logout-btn"
               onClick={handleLogout}
@@ -862,10 +950,7 @@ const handleUpdateProfile = async () => {
   className={`notification-item ${
     notification.isRead ? "" : "unread"
   }`}
-  onClick={() => {
-    setShowNotifications(false);
-    handleProfile(notification.sender?._id);
-  }}
+onClick={() => handleNotificationClick(notification)}
 >
           <strong>
             {notification.sender?.name}
@@ -1001,6 +1086,7 @@ const handleUpdateProfile = async () => {
 
                   <article
                     className="post-card"
+                     id={`post-${post._id}`}
                     key={post._id}
                   >
 
@@ -1124,9 +1210,9 @@ const handleUpdateProfile = async () => {
     </div>
   ))}
 
-  <div className="comment-input-row">
+                <div className="comment-input-row">
 
-    <input
+     <input
       type="text"
       placeholder="Write a comment..."
       value={commentText[post._id] || ""}
@@ -1134,7 +1220,7 @@ const handleUpdateProfile = async () => {
         setCommentText({
           ...commentText,
           [post._id]: e.target.value
-        })
+        })  
       }
     />
 
@@ -1161,6 +1247,7 @@ const handleUpdateProfile = async () => {
         </main>
 
       </div>
+      
     );
   }
 
@@ -1278,4 +1365,4 @@ const handleUpdateProfile = async () => {
   );
 }
 
-export default App;
+export default App; 
